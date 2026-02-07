@@ -95,12 +95,21 @@ This document captures all architecture and technology decisions for the Social 
 ```
 smp fetch                        # Fetch new articles from all sources
 smp fetch --source hackernews    # Fetch from specific source
+smp draft "topic or thesis"      # Generate 3 posts per platform (LinkedIn, X, Facebook)
+smp draft "topic" --platform linkedin          # Generate 3 posts for LinkedIn only
+smp draft "topic" --platform linkedin,twitter  # Generate 3 posts for specific platforms
 smp generate                     # Generate posts from unfeatured articles
-smp generate --hint "..."        # Hint-driven research mode
 smp list                         # List fetched articles
 smp list --posts                 # List generated posts
 smp post <id>                    # Copy/output a generated post
 ```
+
+**`smp draft` behavior:**
+- Takes a topic or thesis as input (hint-driven research mode)
+- Generates **3 post variations per platform** by default
+- Default platforms: LinkedIn, X/Twitter, Facebook (3 platforms × 3 posts = 9 posts total)
+- Use `--platform` to target specific platform(s), still generates 3 posts per selected platform
+- Each variation offers a different angle, tone, or hook for the same topic
 
 ---
 
@@ -180,6 +189,7 @@ social-media-publisher/
 ├── src/
 │   ├── cli/                    # CLI commands
 │   │   ├── fetch.ts
+│   │   ├── draft.ts            # Hint-driven: topic -> 3 posts per platform
 │   │   ├── generate.ts
 │   │   ├── list.ts
 │   │   └── post.ts
@@ -200,7 +210,8 @@ social-media-publisher/
 │   │   ├── prompts/
 │   │   │   ├── linkedin.ts     # LinkedIn prompt template
 │   │   │   ├── twitter.ts      # X/Twitter prompt template
-│   │   │   └── hint.ts         # Hint-driven research prompt
+│   │   │   ├── facebook.ts     # Facebook prompt template
+│   │   │   └── draft.ts        # Draft mode: multi-variation generation prompt
 │   │   └── formatter.ts        # Platform-specific formatting
 │   ├── storage/                # Database layer
 │   │   ├── db.ts               # SQLite connection + migrations

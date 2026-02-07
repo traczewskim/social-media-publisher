@@ -12,10 +12,15 @@ Continuously scans AI news and generates social media content.
 - AI newsletters (Import AI, The Batch, TLDR AI, The Rundown AI)
 - AI blogs (OpenAI)
 
-### 2. Hint-Driven Research
-Provide a thesis, system researches evidence and generates posts.
+### 2. Draft Mode (`smp draft`)
+Provide a topic or thesis, system researches evidence and generates **3 post variations per platform**.
 
-**Example:** "Stack Overflow traffic drops because of AI. No questions = no training data = future model problem." -> Research + posts with sources.
+```bash
+smp draft "Stack Overflow traffic drops because of AI"              # 3 posts × 3 platforms = 9 posts
+smp draft "Stack Overflow traffic drops because of AI" --platform linkedin  # 3 posts for LinkedIn only
+```
+
+**Example:** "Stack Overflow traffic drops because of AI. No questions = no training data = future model problem." -> Research + 3 posts per platform with sources.
 
 ## Output Platforms
 - **LinkedIn** - Professional thought leadership
@@ -37,7 +42,7 @@ Provide a thesis, system researches evidence and generates posts.
 ## Architecture
 
 ```
-CLI Layer (smp fetch | generate | list | post)
+CLI Layer (smp fetch | draft | generate | list | post)
     |
     +-- Ingestion Layer
     |   +-- HN Algolia Fetcher
@@ -46,8 +51,9 @@ CLI Layer (smp fetch | generate | list | post)
     |
     +-- Generation Layer
     |   +-- Claude API Client
-    |   +-- Prompt Templates
+    |   +-- Prompt Templates (per platform)
     |   +-- Platform Formatters
+    |   +-- Draft Engine (3 variations per platform)
     |
     +-- Storage Layer (SQLite)
         +-- articles | posts | fetch_log
