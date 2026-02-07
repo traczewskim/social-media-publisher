@@ -4,6 +4,21 @@ This document captures all architecture and technology decisions for the Social 
 
 ---
 
+## Progress
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Data source research | Done | All 5 source types researched, access methods decided |
+| Architecture decisions | Done | Runtime, storage, deployment, libraries all decided |
+| Database schema | Not started | Table definitions, migrations |
+| Project scaffolding | Not started | Package.json, tsconfig, directory structure |
+| Ingestion layer | Not started | Fetchers, normalizers, dedup |
+| Generation layer | Not started | Claude API client, prompt templates |
+| CLI layer | Not started | Commands, argument parsing |
+| Scheduler | Not started | Automated fetch scheduling |
+
+---
+
 ## Decision Log
 
 ### D1: Runtime - TypeScript / Node.js
@@ -173,11 +188,11 @@ social-media-publisher/
 │   │   │   ├── algolia-hn.ts   # Hacker News via Algolia
 │   │   │   └── rss.ts          # Generic RSS/Atom fetcher
 │   │   ├── normalizers/
-│   │   │   ├── hackernews.ts   # HN hit → Article
-│   │   │   ├── reddit.ts       # Reddit Atom entry → Article
-│   │   │   ├── arxiv.ts        # ArXiv RSS item → Article
-│   │   │   ├── newsletter.ts   # Substack/KtN item → Article
-│   │   │   └── blog.ts         # Blog RSS item → Article
+│   │   │   ├── hackernews.ts   # HN hit -> Article
+│   │   │   ├── reddit.ts       # Reddit Atom entry -> Article
+│   │   │   ├── arxiv.ts        # ArXiv RSS item -> Article
+│   │   │   ├── newsletter.ts   # Substack/KtN item -> Article
+│   │   │   └── blog.ts         # Blog RSS item -> Article
 │   │   ├── dedup.ts            # URL normalization + title matching
 │   │   └── scheduler.ts        # Fetch scheduling logic
 │   ├── generation/             # Content generation layer
@@ -195,6 +210,10 @@ social-media-publisher/
 │   ├── config.ts               # Feed URLs, source config
 │   ├── types.ts                # Shared TypeScript types
 │   └── index.ts                # CLI entry point
+├── docs/
+│   ├── data-sources.md         # Source research & decisions
+│   ├── data-sources-implementation.md  # API contracts & schemas
+│   └── architecture.md         # This file
 ├── data/
 │   └── smp.db                  # SQLite database file (gitignored)
 ├── package.json
@@ -209,5 +228,5 @@ social-media-publisher/
 1. **CLI framework:** commander vs citty - needs decision before implementation
 2. **Scheduler:** OS cron vs node-cron - needs decision before implementation
 3. **Database migrations:** Use a migration library (e.g., `umzug`) or hand-rolled SQL scripts?
-4. **HTML-to-text:** Needed for extracting readable text from RSS HTML content. Library choice? (`turndown` for HTML→Markdown, `html-to-text` for plain text)
+4. **HTML-to-text:** Needed for extracting readable text from RSS HTML content. Library choice? (`turndown` for HTML->Markdown, `html-to-text` for plain text)
 5. **Web search for hint mode:** Which API? (Brave Search API is free tier, or use Claude's built-in tool use with web search)

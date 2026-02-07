@@ -38,26 +38,49 @@ Provide a thesis, system researches evidence and generates posts.
 
 ```
 CLI Layer (smp fetch | generate | list | post)
-    │
-    ├── Ingestion Layer
-    │   ├── HN Algolia Fetcher
-    │   ├── RSS Fetcher (feedsmith)
-    │   └── Source Normalizers
-    │
-    ├── Generation Layer
-    │   ├── Claude API Client
-    │   ├── Prompt Templates
-    │   └── Platform Formatters
-    │
-    └── Storage Layer (SQLite)
-        └── articles | posts | fetch_log
+    |
+    +-- Ingestion Layer
+    |   +-- HN Algolia Fetcher
+    |   +-- RSS Fetcher (feedsmith)
+    |   +-- Source Normalizers
+    |
+    +-- Generation Layer
+    |   +-- Claude API Client
+    |   +-- Prompt Templates
+    |   +-- Platform Formatters
+    |
+    +-- Storage Layer (SQLite)
+        +-- articles | posts | fetch_log
 ```
+
+## Progress
+
+| Phase | Status | Details |
+|-------|--------|---------|
+| Data source research | Done | 5 source types, access methods, API contracts, feed schemas |
+| Architecture decisions | Done | 7 decisions documented (runtime, storage, deployment, libraries) |
+| Database schema | Pending | Table definitions, migrations |
+| Project scaffolding | Pending | package.json, tsconfig, directory structure |
+| Ingestion layer | Pending | Fetchers, normalizers, dedup |
+| Generation layer | Pending | Claude API client, prompt templates |
+| CLI layer | Pending | Commands, argument parsing |
+| Scheduler | Pending | Automated fetch scheduling |
+
+## Key Decisions
+
+- **RSS-first ingestion** - All sources except HN use RSS/Atom feeds. Free, no auth, simple.
+- **Algolia for HN** - Full-text search + quality filtering (points>30) for free.
+- **Twitter/X deferred** - $200/month minimum for read access. Other sources provide enough content for MVP.
+- **Local CLI, not serverless** - Personal tool, not SaaS. SQLite, not DynamoDB. Zero cloud costs.
+- **Entire MVP pipeline is free** - No paid APIs needed for data ingestion.
 
 ## Documentation
 
-- [Data Sources - Research & Decisions](./docs/data-sources.md)
-- [Data Sources - Implementation Guide](./docs/data-sources-implementation.md)
-- [Architecture & Tech Stack](./docs/architecture.md)
+| Document | Contents |
+|----------|----------|
+| [Data Sources - Research & Decisions](./docs/data-sources.md) | Options analysis per source, access methods, cost comparison |
+| [Data Sources - Implementation Guide](./docs/data-sources-implementation.md) | API contracts, response schemas, feed XML formats, unified data model, feed config |
+| [Architecture & Tech Stack](./docs/architecture.md) | All tech decisions with rationale, dependencies, project structure, open questions |
 
 ## Status
 

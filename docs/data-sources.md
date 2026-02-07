@@ -124,9 +124,9 @@ https://reddit.com/r/ClaudeAI.rss
 
 ### Decision
 
-> **Use RSS feeds for daily new paper monitoring. Use `arxiv` Python package for keyword-filtered searches.**
+> **Use RSS feeds for daily new paper monitoring. Use ArXiv API directly for keyword-filtered searches if needed.**
 >
-> RSS gives us zero-effort daily updates per category. The Python package lets us run targeted queries when needed.
+> RSS gives us zero-effort daily updates per category. The official API can be called via HTTP for targeted queries when needed (no Python dependency - we're a TypeScript project per architecture decision D1).
 
 ### RSS URLs
 
