@@ -3,11 +3,11 @@
 ## Architecture
 
 - **Frontend**: React app (CloudFront + S3 static site)
-- **API**: API Gateway + Lambda
+- **API**: API Gateway (API key auth) + Lambda
 - **Storage**: DynamoDB
-- **Messaging**: SNS (event bus)
+- **Messaging**: SNS → SQS → Lambda (event-driven pipeline)
 - **Compute**: GitHub Actions (Claude API research + content generation)
-- **Notifications**: Discord (webhook)
+- **Notifications**: Discord (Bot API — threads per hint)
 
 ## Architecture Diagram
 
@@ -15,39 +15,55 @@
 sequenceDiagram
     actor User
     participant S3/CF as S3 + CloudFront<br/>(React App)
-    participant APIGW as API Gateway
-    participant Lambda as Lambda
+    participant APIGW as API Gateway<br/>(API Key)
+    participant LHint as Lambda<br/>(Hint Handler)
     participant DDB as DynamoDB
     participant SNS as SNS
+    participant SQS1 as SQS<br/>(GHA Trigger)
+    participant LTrigger as Lambda<br/>(GHA Trigger)
     participant GHA as GitHub Actions<br/>(Claude API)
-    participant Discord as Discord<br/>(Webhook)
+    participant LContent as Lambda<br/>(Content Handler)
+    participant SQS2 as SQS<br/>(Discord Notify)
+    participant LDiscord as Lambda<br/>(Discord Publisher)
+    participant Discord as Discord<br/>(Bot API)
 
     %% Submit hint flow
     User->>S3/CF: Submit hint via UI
-    S3/CF->>APIGW: POST /hints
-    APIGW->>Lambda: Invoke
-    Lambda->>DDB: Store hint (status: pending)
-    Lambda->>SNS: Publish "hint-created" event
-    Lambda-->>APIGW: 202 Accepted
+    S3/CF->>APIGW: POST /hints (API key)
+    APIGW->>LHint: Invoke
+    LHint->>DDB: Store hint (status: pending)
+    LHint->>SNS: Publish "hint-created" event
+    LHint-->>APIGW: 202 Accepted
     APIGW-->>S3/CF: 202 Accepted
     S3/CF-->>User: Hint submitted
 
+    %% SNS fanout → trigger GitHub Actions
+    SNS->>SQS1: hint-created event
+    SQS1->>LTrigger: Poll
+    LTrigger->>GHA: repository_dispatch (GitHub API)
+
     %% Research + generation flow
-    SNS->>GHA: Trigger workflow (repository_dispatch)
     GHA->>GHA: Claude API: research topic
     GHA->>GHA: Claude API: generate content per platform
-    GHA->>APIGW: POST /hints/{id}/content
-    APIGW->>Lambda: Invoke
-    Lambda->>DDB: Store generated content (status: complete)
-    Lambda->>Discord: Post content via webhook
+    GHA->>APIGW: POST /hints/{id}/content (API key)
+    APIGW->>LContent: Invoke
+    LContent->>DDB: Store generated content (status: complete)
+    LContent->>SNS: Publish "content-created" event
+    LContent-->>APIGW: 200 OK
+
+    %% SNS fanout → Discord notification
+    SNS->>SQS2: content-created event
+    SQS2->>LDiscord: Poll
+    LDiscord->>Discord: Create thread for hint
+    LDiscord->>Discord: Post generated content in thread
     Discord-->>User: Notification with generated content
 
     %% Review flow
     User->>S3/CF: View hint details
-    S3/CF->>APIGW: GET /hints/{id}
-    APIGW->>Lambda: Invoke
-    Lambda->>DDB: Fetch hint + content
-    Lambda-->>S3/CF: Hint + generated content
+    S3/CF->>APIGW: GET /hints/{id} (API key)
+    APIGW->>LHint: Invoke
+    LHint->>DDB: Fetch hint + content
+    LHint-->>S3/CF: Hint + generated content
     S3/CF-->>User: Display content per platform
 ```
 
@@ -64,30 +80,44 @@ sequenceDiagram
 ## Core Flow
 
 1. User adds a hint (topic/thesis) via the React UI
-2. API Gateway → Lambda stores hint in DynamoDB, publishes SNS event
-3. SNS triggers GitHub Actions workflow via `repository_dispatch`
-4. GitHub Actions uses Claude API (via OAuth/sub) to research and generate content
-5. GitHub Actions POSTs results back to API Gateway
-6. Lambda stores generated content in DynamoDB + sends Discord notification
-7. User reviews generated content in the UI (or via Discord)
+2. API Gateway (API key) → Lambda stores hint in DynamoDB, publishes SNS "hint-created"
+3. SNS → SQS → Lambda calls GitHub API `repository_dispatch` to trigger workflow
+4. GitHub Actions uses Claude API to research and generate content per platform
+5. GitHub Actions POSTs results back to API Gateway (API key)
+6. Lambda stores generated content in DynamoDB, publishes SNS "content-created"
+7. SNS → SQS → Lambda creates a Discord thread for the hint and posts content
+8. User reviews generated content in the UI or Discord thread
+
+## SNS Topics & Subscribers
+
+| Topic | Event | SQS → Lambda Subscriber |
+|-------|-------|------------------------|
+| `hint-events` | `hint-created` | GHA Trigger Lambda (calls `repository_dispatch`) |
+| `content-events` | `content-created` | Discord Publisher Lambda (creates thread + posts) |
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /hints | Submit a new hint |
-| GET | /hints | List all hints |
-| GET | /hints/{id} | Get hint with generated content |
-| POST | /hints/{id}/content | Store generated content (called by GHA) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /hints | API key | Submit a new hint |
+| GET | /hints | API key | List all hints |
+| GET | /hints/{id} | API key | Get hint with generated content |
+| POST | /hints/{id}/content | API key | Store generated content (called by GHA) |
+
+## Discord Integration
+
+- **Bot API** (not webhooks) — needed for thread management
+- On "content-created" event:
+  1. Create a new thread in the designated channel, titled with the hint topic
+  2. Post generated content per platform as messages within the thread
+  3. Store `discordThreadId` on the hint record in DynamoDB for future reference
+- Allows conversation/feedback within the thread
 
 ## DynamoDB Schema (Draft)
 
-### Hints Table
-- **PK**: `HINT#{id}`
-- **SK**: `METADATA`
-- **Attributes**: topic, status (pending/processing/complete), createdAt, updatedAt
+### Single-table design
 
-### Content (same table, different SK)
-- **PK**: `HINT#{id}`
-- **SK**: `CONTENT#{platform}`
-- **Attributes**: platform, body, generatedAt, sources[]
+| PK | SK | Attributes |
+|----|-----|------------|
+| `HINT#{id}` | `METADATA` | topic, status (pending/processing/complete), discordThreadId, createdAt, updatedAt |
+| `HINT#{id}` | `CONTENT#{platform}` | platform, body, generatedAt, sources[] |
