@@ -187,3 +187,7 @@ sequenceDiagram
 |----|-----|------------|
 | `HINT#{id}` | `METADATA` | topic, status (pending/processing/complete), source (web/discord), discordThreadId, createdAt, updatedAt |
 | `HINT#{id}` | `CONTENT#{platform}` | platform (linkedin/x), body, generatedAt, sources[] |
+
+## Open Research
+
+- [ ] **Claude Code OAuth bot for Discord/Slack** — investigate whether Claude Code offers a ready-made OAuth bot integration for Discord or Slack that could replace or simplify the custom discord.js bot. Could potentially provide direct Claude interaction within Discord/Slack without managing a custom bot + GitHub Actions pipeline.
