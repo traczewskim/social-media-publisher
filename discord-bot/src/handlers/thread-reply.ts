@@ -2,6 +2,7 @@ import { Message, ChannelType } from "discord.js";
 import type { ClaudeRunner } from "../services/claude-runner.js";
 import { buildEmbeds } from "../commands/hint.js";
 import { ENGAGE_THREAD_PREFIX } from "../commands/engage.js";
+import { TALK_THREAD_PREFIX } from "../commands/talk.js";
 import { logger } from "../logger.js";
 
 export async function handleThreadReply(
@@ -42,6 +43,7 @@ export async function handleThreadReply(
   );
 
   const isEngage = thread.name.startsWith(ENGAGE_THREAD_PREFIX);
+  const isTalk = thread.name.startsWith(TALK_THREAD_PREFIX);
 
   try {
     await message.channel.sendTyping();
@@ -76,6 +78,10 @@ export async function handleThreadReply(
 
       await thread.send(reply);
       logger.info({ threadId: thread.id }, "Engage reply posted");
+    } else if (isTalk) {
+      const reply = await runner.continueTalk(history);
+      await thread.send(reply);
+      logger.info({ threadId: thread.id }, "Talk reply posted");
     } else {
       const variants = await runner.refine(history);
 

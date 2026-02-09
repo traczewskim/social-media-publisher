@@ -63,6 +63,26 @@ export class ClaudeRunner {
     return unwrapEnvelope(output);
   }
 
+  async talk(message: string): Promise<string> {
+    const prompt = buildTalkPrompt(message);
+
+    logger.info({ message: message.slice(0, 80) }, "Starting talk conversation");
+
+    const output = await this.exec(prompt);
+    return unwrapEnvelope(output);
+  }
+
+  async continueTalk(
+    history: { role: "user" | "assistant"; content: string }[],
+  ): Promise<string> {
+    const prompt = buildContinueTalkPrompt(history);
+
+    logger.info("Continuing talk conversation");
+
+    const output = await this.exec(prompt);
+    return unwrapEnvelope(output);
+  }
+
   private exec(prompt: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const args = [
@@ -269,4 +289,29 @@ function tryParseContent(text: string, expectedCount: number): GeneratedContent[
 
 function isGeneratedContent(obj: unknown): obj is GeneratedContent {
   return typeof obj === "object" && obj !== null && "linkedin" in obj && "x" in obj;
+}
+
+function buildTalkPrompt(message: string): string {
+  return `You are a helpful, knowledgeable conversationalist.
+
+The user wants to discuss:
+"${message}"
+
+Respond naturally and concisely. Be direct, no filler.`;
+}
+
+function buildContinueTalkPrompt(
+  history: { role: "user" | "assistant"; content: string }[],
+): string {
+  const conversation = history
+    .map((msg) => `${msg.role === "user" ? "USER" : "ASSISTANT"}: ${msg.content}`)
+    .join("\n\n");
+
+  return `You are a helpful, knowledgeable conversationalist. Be direct, no filler.
+
+Here is the conversation so far:
+
+${conversation}
+
+Continue the conversation based on the user's latest message.`;
 }

@@ -4,6 +4,7 @@ import { logger } from "./logger.js";
 import { ClaudeRunner } from "./services/claude-runner.js";
 import { execute as executeHint } from "./commands/hint.js";
 import { execute as executeEngage } from "./commands/engage.js";
+import { execute as executeTalk } from "./commands/talk.js";
 import { handleThreadReply } from "./handlers/thread-reply.js";
 
 const config = loadConfig();
@@ -30,6 +31,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await executeHint(command, runner);
   } else if (command.commandName === "engage") {
     await executeEngage(command);
+  } else if (command.commandName === "talk") {
+    await executeTalk(command, runner);
   } else {
     logger.warn({ command: command.commandName }, "Unknown command");
   }

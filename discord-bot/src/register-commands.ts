@@ -1,6 +1,7 @@
 import { REST, Routes } from "discord.js";
 import { data as hintCommand } from "./commands/hint.js";
 import { data as engageCommand } from "./commands/engage.js";
+import { data as talkCommand } from "./commands/talk.js";
 import { logger } from "./logger.js";
 
 const token = process.env.DISCORD_TOKEN;
@@ -12,7 +13,7 @@ if (!token || !clientId || !guildId) {
 }
 
 const rest = new REST().setToken(token);
-const commands = [hintCommand.toJSON(), engageCommand.toJSON()];
+const commands = [hintCommand.toJSON(), engageCommand.toJSON(), talkCommand.toJSON()];
 
 logger.info({ commandCount: commands.length }, "Registering slash commands");
 
