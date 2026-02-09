@@ -7,34 +7,60 @@ export interface GeneratedContent {
   x: string;
 }
 
+export interface HintOptions {
+  tone: "professional" | "casual" | "provocative" | "educational" | "humorous";
+  length: "short" | "medium" | "long";
+  examples: number;
+}
+
 export class ClaudeRunner {
   constructor(_config: Config) {}
 
 
-  async run(topic: string): Promise<GeneratedContent> {
-    const prompt = buildPrompt(topic);
+  async run(topic: string, options: HintOptions): Promise<GeneratedContent[]> {
+    const prompt = buildPrompt(topic, options);
 
-    logger.info({ topic }, "Starting claude-runner");
+    logger.info({ topic, ...options }, "Starting claude-runner");
 
     const output = await this.exec(prompt);
 
-    const parsed = parseOutput(output);
-    logger.info({ topic, platforms: Object.keys(parsed) }, "Content generated");
+    const parsed = parseOutput(output, options.examples);
+    logger.info({ topic, platforms: Object.keys(parsed[0]), variants: parsed.length }, "Content generated");
     return parsed;
   }
 
   async refine(
     history: { role: "user" | "assistant"; content: string }[],
-  ): Promise<GeneratedContent> {
+  ): Promise<GeneratedContent[]> {
     const prompt = buildRefinePrompt(history);
 
     logger.info("Refining content based on thread conversation");
 
     const output = await this.exec(prompt);
 
-    const parsed = parseOutput(output);
-    logger.info({ platforms: Object.keys(parsed) }, "Refined content generated");
+    const parsed = parseOutput(output, 1);
+    logger.info({ platforms: Object.keys(parsed[0]) }, "Refined content generated");
     return parsed;
+  }
+
+  async engage(statement: string, userAngle: string): Promise<string> {
+    const prompt = buildEngagePrompt(statement, userAngle);
+
+    logger.info({ statement: statement.slice(0, 80) }, "Generating engage reply");
+
+    const output = await this.exec(prompt);
+    return unwrapEnvelope(output);
+  }
+
+  async refineEngage(
+    history: { role: "user" | "assistant"; content: string }[],
+  ): Promise<string> {
+    const prompt = buildRefineEngagePrompt(history);
+
+    logger.info("Refining engage reply based on feedback");
+
+    const output = await this.exec(prompt);
+    return unwrapEnvelope(output);
   }
 
   private exec(prompt: string): Promise<string> {
@@ -98,54 +124,108 @@ Return ONLY valid JSON in this exact format, no other text:
 {"linkedin": "your updated linkedin post here", "x": "your updated tweet here"}`;
 }
 
-function buildPrompt(topic: string): string {
+const LENGTH_GUIDE = {
+  short: { linkedin: "1 short paragraph", x: "max 140 characters" },
+  medium: { linkedin: "1-3 paragraphs", x: "max 280 characters" },
+  long: { linkedin: "3-5 paragraphs with bullet points or examples", x: "max 280 characters" },
+} as const;
+
+function buildPrompt(topic: string, options: HintOptions): string {
+  const { tone, length, examples } = options;
+  const guide = LENGTH_GUIDE[length];
+  const variantCount = Math.max(1, Math.min(3, examples));
+
+  const jsonFormat = variantCount === 1
+    ? `{"linkedin": "your linkedin post here", "x": "your tweet here"}`
+    : `[${Array.from({ length: variantCount }, () => `{"linkedin": "...", "x": "..."}`).join(", ")}]`;
+
   return `You are a social media content creator for a personal brand focused on AI and agentic coding.
 
-Research the following topic and generate two social media posts:
+Research the following topic and generate social media posts:
 
 Topic: "${topic}"
 
-Generate:
-1. A LinkedIn post (professional tone, 1-3 paragraphs, thought leadership style)
-2. An X/Twitter post (concise, punchy, max 280 characters)
+Tone: ${tone}
+Generate ${variantCount} variant${variantCount > 1 ? "s" : ""}, each containing:
+1. A LinkedIn post (${tone} tone, ${guide.linkedin}, thought leadership style)
+2. An X/Twitter post (${tone}, punchy, ${guide.x})
 
 Return ONLY valid JSON in this exact format, no other text:
-{"linkedin": "your linkedin post here", "x": "your tweet here"}`;
+${jsonFormat}`;
 }
 
-function parseOutput(output: string): GeneratedContent {
+function unwrapEnvelope(output: string): string {
+  try {
+    const envelope = JSON.parse(output);
+    if (envelope.result) {
+      return envelope.result;
+    }
+  } catch {
+    // Not a JSON envelope, use raw output
+  }
+  return output;
+}
+
+function buildEngagePrompt(statement: string, userAngle: string): string {
+  return `You are helping someone write a natural reply to a social media post.
+
+The original post/statement:
+"${statement}"
+
+The user's take:
+"${userAngle}"
+
+Write a reply that:
+- Sounds like a real person, not a bot or a PR team
+- Matches the register and energy of the original post
+- Clearly expresses the user's angle
+- Is concise — one short paragraph max, no filler
+- No corporate jargon, no buzzwords, no "Great point!" openers
+- No hashtags, no emojis unless the original post uses them
+
+Return ONLY the reply text, nothing else.`;
+}
+
+function buildRefineEngagePrompt(
+  history: { role: "user" | "assistant"; content: string }[],
+): string {
+  const conversation = history
+    .map((msg) => `${msg.role === "user" ? "USER" : "ASSISTANT"}: ${msg.content}`)
+    .join("\n\n");
+
+  return `You are helping someone refine a reply to a social media post.
+
+Here is the conversation so far:
+
+${conversation}
+
+Based on the user's latest feedback, write an updated reply that:
+- Sounds like a real person, not a bot or a PR team
+- Matches the register and energy of the original post
+- Is concise — one short paragraph max, no filler
+- No corporate jargon, no buzzwords, no "Great point!" openers
+- No hashtags, no emojis unless the original post uses them
+
+Return ONLY the updated reply text, nothing else.`;
+}
+
+function parseOutput(output: string, expectedCount: number): GeneratedContent[] {
   try {
     // Claude Code --output-format json wraps output in a result envelope
-    // The "result" field contains the text response with embedded JSON
-    let text = output;
-    try {
-      const envelope = JSON.parse(output);
-      if (envelope.result) {
-        text = envelope.result;
-      }
-    } catch {
-      // Not a JSON envelope, use raw output
-    }
+    let text = unwrapEnvelope(output);
 
     // Extract JSON from markdown code block (```json ... ```) or raw text
     const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      // After envelope JSON.parse, \n becomes literal newlines inside strings
-      // Re-escape them so JSON.parse can handle the inner JSON
-      const jsonStr = codeBlockMatch[1].trim().replace(/\n/g, '\\n');
-      const parsed = JSON.parse(jsonStr);
-      if (parsed.linkedin && parsed.x) {
-        return { linkedin: parsed.linkedin, x: parsed.x };
-      }
-    }
+    const rawJson = codeBlockMatch
+      ? codeBlockMatch[1].trim().replace(/\n/g, '\\n')
+      : null;
 
-    // Fallback: find raw JSON object with linkedin/x fields
-    const jsonMatch = text.match(/\{[\s\S]*?"linkedin"[\s\S]*?"x"[\s\S]*?\}(?=[^}]*$)/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.linkedin && parsed.x) {
-        return { linkedin: parsed.linkedin, x: parsed.x };
-      }
+    // Try parsing from code block first, then fallback to raw text
+    const candidates = rawJson ? [rawJson, text] : [text];
+
+    for (const candidate of candidates) {
+      const result = tryParseContent(candidate, expectedCount);
+      if (result) return result;
     }
 
     throw new Error("No JSON with linkedin/x fields found in output");
@@ -153,4 +233,36 @@ function parseOutput(output: string): GeneratedContent {
     logger.error({ output: output.slice(0, 500), err }, "Failed to parse claude-runner output");
     throw new Error(`Failed to parse content: ${(err as Error).message}`);
   }
+}
+
+function tryParseContent(text: string, expectedCount: number): GeneratedContent[] | null {
+  // Try parsing as array first (multiple variants)
+  if (expectedCount > 1) {
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try {
+        const arr = JSON.parse(arrayMatch[0]);
+        if (Array.isArray(arr) && arr.every((item: unknown) => isGeneratedContent(item))) {
+          return arr;
+        }
+      } catch { /* try next strategy */ }
+    }
+  }
+
+  // Try parsing as single object
+  const objMatch = text.match(/\{[\s\S]*?"linkedin"[\s\S]*?"x"[\s\S]*?\}(?=[^}]*$)/);
+  if (objMatch) {
+    try {
+      const parsed = JSON.parse(objMatch[0]);
+      if (isGeneratedContent(parsed)) {
+        return [parsed];
+      }
+    } catch { /* fall through */ }
+  }
+
+  return null;
+}
+
+function isGeneratedContent(obj: unknown): obj is GeneratedContent {
+  return typeof obj === "object" && obj !== null && "linkedin" in obj && "x" in obj;
 }

@@ -1,6 +1,7 @@
-import { Message, ChannelType, EmbedBuilder } from "discord.js";
+import { Message, ChannelType } from "discord.js";
 import type { ClaudeRunner } from "../services/claude-runner.js";
 import { buildEmbeds } from "../commands/hint.js";
+import { ENGAGE_THREAD_PREFIX } from "../commands/engage.js";
 import { logger } from "../logger.js";
 
 export async function handleThreadReply(
@@ -40,19 +41,53 @@ export async function handleThreadReply(
     "Processing thread reply",
   );
 
+  const isEngage = thread.name.startsWith(ENGAGE_THREAD_PREFIX);
+
   try {
     await message.channel.sendTyping();
 
-    const content = await runner.refine(history);
+    if (isEngage) {
+      // Extract original statement from the first bot message
+      const sortedMessages = Array.from(messages.values()).sort(
+        (a, b) => a.createdTimestamp - b.createdTimestamp,
+      );
+      const statementMsg = sortedMessages.find(
+        (m) => m.author.id === botUserId && m.content.startsWith("**Statement to respond to:**"),
+      );
+      const statement = statementMsg
+        ? statementMsg.content.replace("**Statement to respond to:**\n", "")
+        : "";
 
-    await thread.send({
-      content: `**Updated content:**`,
-      embeds: buildEmbeds(content),
-    });
+      // Check if this is the first user reply or a refinement:
+      // If any bot message is a drafted reply (not the setup messages), it's a refinement
+      const hasDraft = sortedMessages.some(
+        (m) =>
+          m.author.id === botUserId &&
+          !m.content.startsWith("**Statement to respond to:**") &&
+          !m.content.startsWith("What's your take"),
+      );
 
-    logger.info({ threadId: thread.id }, "Refined content posted");
+      let reply: string;
+      if (!hasDraft) {
+        reply = await runner.engage(statement, message.content);
+      } else {
+        reply = await runner.refineEngage(history);
+      }
+
+      await thread.send(reply);
+      logger.info({ threadId: thread.id }, "Engage reply posted");
+    } else {
+      const variants = await runner.refine(history);
+
+      await thread.send({
+        content: `**Updated content:**`,
+        embeds: buildEmbeds(variants[0]),
+      });
+
+      logger.info({ threadId: thread.id }, "Refined content posted");
+    }
   } catch (err) {
-    logger.error({ err, threadId: thread.id }, "Failed to refine content");
+    logger.error({ err, threadId: thread.id }, "Failed to process thread reply");
     await thread.send(
       "Sorry, I couldn't process that. Try rephrasing your feedback.",
     );
