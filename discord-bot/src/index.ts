@@ -2,15 +2,18 @@ import { Client, Events, GatewayIntentBits, ChatInputCommandInteraction } from "
 import { loadConfig } from "./config.js";
 import { logger } from "./logger.js";
 import { ClaudeRunner } from "./services/claude-runner.js";
-import { WebhookClient } from "./services/webhook.js";
 import { execute as executeHint } from "./commands/hint.js";
+import { handleThreadReply } from "./handlers/thread-reply.js";
 
 const config = loadConfig();
 const runner = new ClaudeRunner(config);
-const webhook = new WebhookClient(config.DISCORD_WEBHOOK_URL);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -23,10 +26,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const command = interaction as ChatInputCommandInteraction;
 
   if (command.commandName === "hint") {
-    await executeHint(command, runner, webhook);
+    await executeHint(command, runner);
   } else {
     logger.warn({ command: command.commandName }, "Unknown command");
   }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (!client.user) return;
+  await handleThreadReply(message, runner, client.user.id);
 });
 
 async function shutdown(): Promise<void> {
@@ -37,5 +45,8 @@ async function shutdown(): Promise<void> {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+process.on("unhandledRejection", (err) => {
+  logger.error({ err }, "Unhandled rejection");
+});
 
 client.login(config.DISCORD_TOKEN);

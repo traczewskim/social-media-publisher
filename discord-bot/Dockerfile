@@ -13,13 +13,16 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-RUN addgroup -S bot && adduser -S bot -G bot
+RUN npm install -g @anthropic-ai/claude-code \
+ && mkdir -p /root/.claude \
+ && printf '{"hasTrustDialogAccepted":true,"hasTrustDialogHooksAccepted":true,"hasCompletedOnboarding":true,"projects":{"/app":{"allowedTools":[],"hasTrustDialogAccepted":true,"hasClaudeMdExternalIncludesApproved":false}}}\n' > /root/.claude.json \
+ && echo '{"theme":"dark"}' > /root/.claude/settings.json
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-USER bot
+ENV NODE_ENV=production
 
-CMD ["node", "dist/index.js"]
+CMD sh -c 'claude -p "hello" > /dev/null 2>&1; node dist/index.js'

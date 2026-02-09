@@ -5,10 +5,6 @@ const envSchema = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1),
   DISCORD_CHANNEL_ID: z.string().min(1),
-  DISCORD_WEBHOOK_URL: z.string().url(),
-
-  ANTHROPIC_API_KEY: z.string().min(1),
-  CLAUDE_RUNNER_IMAGE: z.string().default("claude-runner:1.0"),
 
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
