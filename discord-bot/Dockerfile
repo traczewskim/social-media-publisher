@@ -25,6 +25,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
+COPY .env ./
 
 RUN chown -R app:app /app
 
@@ -32,4 +33,4 @@ USER app
 
 ENV NODE_ENV=production
 
-CMD sh -c 'claude -p "hello" > /dev/null 2>&1; node dist/index.js'
+CMD sh -c 'claude -p "hello" > /dev/null 2>&1; node --env-file=.env dist/index.js'
