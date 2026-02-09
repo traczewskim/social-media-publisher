@@ -73,7 +73,11 @@ export class ClaudeRunner {
 
       const child = spawn("claude", args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: process.env,
+        env: {
+          PATH: process.env.PATH,
+          HOME: process.env.HOME,
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+        },
       });
 
       let stdout = "";
@@ -90,7 +94,7 @@ export class ClaudeRunner {
       child.on("close", (code) => {
         clearTimeout(timer);
         if (code !== 0) {
-          logger.error({ code, stderr }, "claude-runner failed");
+          logger.error({ code, stderr: stderr.slice(0, 300) }, "claude-runner failed");
           reject(new Error(`claude-runner exited with code ${code}`));
           return;
         }

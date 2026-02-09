@@ -15,7 +15,8 @@ export const data = new SlashCommandBuilder()
     option
       .setName("statement")
       .setDescription("The post or statement you want to respond to")
-      .setRequired(true),
+      .setRequired(true)
+      .setMaxLength(1000),
   );
 
 export async function execute(
@@ -26,7 +27,7 @@ export async function execute(
   try {
     await interaction.deferReply();
   } catch (err) {
-    logger.error({ err, statement }, "Failed to defer reply (interaction expired)");
+    logger.error({ err, statement: statement.slice(0, 80) }, "Failed to defer reply (interaction expired)");
     return;
   }
 
@@ -56,9 +57,9 @@ export async function execute(
       `Thread created! Share your take here: ${thread.toString()}`,
     );
 
-    logger.info({ statement, threadId: thread.id }, "Engage thread created");
+    logger.info({ statement: statement.slice(0, 80), threadId: thread.id }, "Engage thread created");
   } catch (err) {
-    logger.error({ err, statement }, "Failed to create engage thread");
+    logger.error({ err, statement: statement.slice(0, 80) }, "Failed to create engage thread");
     try {
       await interaction.editReply(
         "Failed to set up the engage thread. Please try again later.",

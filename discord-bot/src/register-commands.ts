@@ -21,4 +21,4 @@ const data = await rest.put(
   { body: commands },
 );
 
-logger.info({ data }, "Slash commands registered");
+logger.info({ registeredCount: (data as unknown[]).length }, "Slash commands registered");

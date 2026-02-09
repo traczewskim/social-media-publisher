@@ -5,7 +5,7 @@ import {
   ChannelType,
   TextChannel,
 } from "discord.js";
-import type { ClaudeRunner, GeneratedContent } from "../services/claude-runner.js";
+import type { ClaudeRunner, GeneratedContent, HintOptions } from "../services/claude-runner.js";
 import { logger } from "../logger.js";
 
 export const data = new SlashCommandBuilder()
@@ -15,7 +15,40 @@ export const data = new SlashCommandBuilder()
     option
       .setName("topic")
       .setDescription("The topic or thesis to research and create content for")
-      .setRequired(true),
+      .setRequired(true)
+      .setMaxLength(1000),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("tone")
+      .setDescription("Tone of the generated content")
+      .setRequired(false)
+      .addChoices(
+        { name: "Professional", value: "professional" },
+        { name: "Casual", value: "casual" },
+        { name: "Provocative", value: "provocative" },
+        { name: "Educational", value: "educational" },
+        { name: "Humorous", value: "humorous" },
+      ),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("length")
+      .setDescription("Length of the LinkedIn post")
+      .setRequired(false)
+      .addChoices(
+        { name: "Short", value: "short" },
+        { name: "Medium", value: "medium" },
+        { name: "Long", value: "long" },
+      ),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName("examples")
+      .setDescription("Number of variants to generate (1-3)")
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(3),
   );
 
 export async function execute(
@@ -23,6 +56,11 @@ export async function execute(
   runner: ClaudeRunner,
 ): Promise<void> {
   const topic = interaction.options.getString("topic", true);
+  const options: HintOptions = {
+    tone: (interaction.options.getString("tone") ?? "professional") as HintOptions["tone"],
+    length: (interaction.options.getString("length") ?? "medium") as HintOptions["length"],
+    examples: interaction.options.getInteger("examples") ?? 1,
+  };
 
   try {
     await interaction.deferReply();
@@ -33,16 +71,16 @@ export async function execute(
 
   try {
     await interaction.editReply(
-      `Researching **"${topic}"**... This may take a few minutes.`,
+      `Researching **"${topic}"**... (${options.tone}, ${options.length}, ${options.examples} variant${options.examples > 1 ? "s" : ""})`,
     );
 
-    const content = await runner.run(topic);
+    const variants = await runner.run(topic, options);
 
     const channel = interaction.channel;
     if (!channel || channel.type !== ChannelType.GuildText) {
       await interaction.editReply({
         content: `**Content generated for:** ${topic}`,
-        embeds: buildEmbeds(content),
+        embeds: buildEmbeds(variants[0]),
       });
       return;
     }
@@ -54,10 +92,13 @@ export async function execute(
       reason: `Content generation for: ${topic}`,
     });
 
-    await thread.send({
-      content: `**Content generated for:** ${topic}`,
-      embeds: buildEmbeds(content),
-    });
+    for (let i = 0; i < variants.length; i++) {
+      const label = variants.length > 1 ? ` (Variant ${i + 1})` : "";
+      await thread.send({
+        content: `**Content generated for:** ${topic}${label}`,
+        embeds: buildEmbeds(variants[i]),
+      });
+    }
 
     await thread.send(
       `Reply in this thread to refine the content. I'll adjust based on your feedback.`,
@@ -67,7 +108,7 @@ export async function execute(
       `Done! Content for **"${topic}"** posted in thread: ${thread.toString()}`,
     );
 
-    logger.info({ topic, threadId: thread.id }, "Hint thread created");
+    logger.info({ topic, threadId: thread.id, variants: variants.length }, "Hint thread created");
   } catch (err) {
     logger.error({ err, topic }, "Failed to generate content");
     try {
