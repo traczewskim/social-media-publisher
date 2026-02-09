@@ -1,9 +1,14 @@
 services:
   discord-bot:
     build: .
+    image: social-media-publisher
+    container_name: discord-bot
     restart: unless-stopped
+    mem_limit: 4g
     env_file:
       - .env
+    environment:
+      - LOG_LEVEL=info
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
