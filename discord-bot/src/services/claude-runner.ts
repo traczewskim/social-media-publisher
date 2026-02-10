@@ -97,6 +97,7 @@ export class ClaudeRunner {
           PATH: process.env.PATH,
           HOME: process.env.HOME,
           ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+          CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN,
         },
       });
 
