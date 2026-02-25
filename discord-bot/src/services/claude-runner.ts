@@ -137,13 +137,19 @@ function buildRefinePrompt(
     .map((msg) => `${msg.role === "user" ? "USER" : "ASSISTANT"}: ${msg.content}`)
     .join("\n\n");
 
-  return `You are a social media content creator refining previously generated posts based on user feedback.
+  return `You refine social media posts based on user feedback. The posts should sound like a real person wrote them — not a marketing team or a chatbot.
 
 Here is the conversation so far:
 
 ${conversation}
 
 Based on the user's latest feedback, generate updated versions of both posts.
+
+Keep these rules:
+- Write like a person, not a brand. No buzzwords, no hollow hype, no filler.
+- Avoid words like "game-changer", "revolutionary", "landscape", "leverage", "delve", "unlock", "elevate", "foster", "streamline", "cutting-edge", "synergy"
+- Short sentences. Clear opinions. It's okay to be blunt or informal.
+- No generic openers ("In today's world...") or closers ("What do you think?")
 
 Return ONLY valid JSON in this exact format, no other text:
 {"linkedin": "your updated linkedin post here", "x": "your updated tweet here"}`;
@@ -164,16 +170,28 @@ function buildPrompt(topic: string, options: HintOptions): string {
     ? `{"linkedin": "your linkedin post here", "x": "your tweet here"}`
     : `[${Array.from({ length: variantCount }, () => `{"linkedin": "...", "x": "..."}`).join(", ")}]`;
 
-  return `You are a social media content creator for a personal brand focused on AI and agentic coding.
+  return `You write social media posts for someone who works in AI and agentic coding. Your job is to sound like them — a real person sharing what they actually think — not like a marketing team or a chatbot.
 
-Research the following topic and generate social media posts:
+Research the following topic and write social media posts about it:
 
 Topic: "${topic}"
 
 Tone: ${tone}
 Generate ${variantCount} variant${variantCount > 1 ? "s" : ""}, each containing:
-1. A LinkedIn post (${tone} tone, ${guide.linkedin}, thought leadership style)
-2. An X/Twitter post (${tone}, punchy, ${guide.x})
+1. A LinkedIn post (${tone} tone, ${guide.linkedin})
+2. An X/Twitter post (${tone}, ${guide.x})
+
+Writing rules — follow these strictly:
+- Write like a person talking to peers, not like a brand broadcasting to an audience
+- No buzzwords: avoid "game-changer", "revolutionary", "exciting", "landscape", "leverage", "delve", "tapestry", "unlock", "realm", "elevate", "foster", "streamline", "cutting-edge", "synergy", "paradigm shift", "thought leader"
+- No hollow hype — if you make a claim, ground it in something specific
+- Don't open with generic hooks like "In today's world..." or "Have you ever wondered..."
+- Don't end with a generic call to action like "What do you think?" or "Let me know in the comments!"
+- Use short sentences. Vary the rhythm. Fragment sentences are fine.
+- Have a clear opinion or point — wishy-washy "both sides" takes are boring
+- It's okay to be blunt, informal, or even a little rough around the edges
+- No hashtags unless tone is casual and they fit naturally
+- No emojis on LinkedIn unless the tone calls for it; never use more than one or two
 
 Return ONLY valid JSON in this exact format, no other text:
 ${jsonFormat}`;
